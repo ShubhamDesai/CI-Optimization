@@ -38,9 +38,9 @@ jobs:
           python parse_html_report.py previous-test-report/report.html failed_tests.txt
         continue-on-error: true
 
-      # Run only the previously failed tests if they exist
+      # Conditionally run only the previously failed tests if they exist
       - name: Run prioritized failed tests (if any)
-        if: fileExists('failed_tests.txt')
+        if: ${{ success() && steps.extract-failed-tests.outputs.file-exists == 'true' }}
         run: |
           pytest --html=test-reports/priority-report.html --self-contained-html --maxfail=1 $(< failed_tests.txt)
 
