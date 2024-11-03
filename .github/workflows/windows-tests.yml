@@ -1,4 +1,4 @@
-name: Windows Tests
+name: Windows Tests with Prioritized Failed Tests
 
 on:
   push:
@@ -24,51 +24,37 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-html
 
-      # Step to restore cache of failed test cases
+      # Restore cache of previously failed tests
       - name: Restore failed test cache
         id: cache-failed-tests
         uses: actions/cache@v3
         with:
-          path: ./.pytest_cache
-          key: failed-tests-${{ github.ref }}  # Use a unique key for the branch or commit
-          restore-keys: |
-            failed-tests-
+          path: failed-tests.txt
+          key: failed-tests-${{ github.ref }}
 
-      - name: Determine tests to run
+      # Run only previously failed tests if cache exists
+      - name: Run prioritized failed tests (if any)
+        if: steps.cache-failed-tests.outputs.cache-hit == 'true'
         run: |
-          if [ -f ./.pytest_cache/failed-tests.txt ]; then
-            echo "Rerunning previously failed tests..."
-            export TEST_LIST=$(cat ./.pytest_cache/failed-tests.txt)
-          else
-            echo "Running all tests..."
-            export TEST_LIST=""
+          pytest --html=test-reports/prioritized-report.html --self-contained-html --last-failed --last-failed-no-failures all || echo "Some prioritized tests failed"
+          if [ $? -ne 0 ]; then
+            echo "Stopping workflow due to repeated failures in prioritized tests."
+            exit 1
           fi
-        shell: bash
 
-      - name: Run tests and generate HTML report
+      # Run all tests if no failed tests were found in the cache
+      - name: Run all tests and generate HTML report
+        if: steps.cache-failed-tests.outputs.cache-hit != 'true'
         run: |
           mkdir -p test-reports
-          if [ -z "$TEST_LIST" ]; then
-            pytest --html=test-reports/report.html --self-contained-html --junitxml=results.xml || true
-          else
-            pytest --html=test-reports/report.html --self-contained-html --junitxml=results.xml $TEST_LIST || true
+          pytest --html=test-reports/full-report.html --self-contained-html
 
-      - name: Process failed tests
-        run: |
-          mkdir -p ./.pytest_cache
-          pytest --last-failed --last-failed-no-failures all --junitxml=results.xml | tee ./.pytest_cache/failed-tests.txt
-        if: failure()
-
-      # Step to upload test report as an artifact
-      - name: Upload HTML report
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-report
-          path: test-reports/report.html
-
-      # Step to save failed test cache
+      # Save a list of failed tests for future runs
       - name: Save failed test cache
-        uses: actions/cache@v3
+        if: failure()
+        run: |
+          pytest --last-failed --last-failed-no-failures all --cache-clear --maxfail=1 --disable-warnings
+          pytest --collect-only | grep '::' | sed 's/<Module //' > failed-tests.txt
+      - uses: actions/upload-artifact@v3
         with:
-          path: ./.pytest_cache/failed-tests.txt
-          key: failed-tests-${{ github.ref }}
+          name: failed
