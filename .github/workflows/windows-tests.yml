@@ -1,4 +1,4 @@
-name: Windows Tests with Prioritized Failed Tests
+name: Test with Prioritized Failed Tests
 
 on:
   push:
@@ -24,44 +24,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-html
 
-      # Restore the cache of previously failed tests
-      - name: Restore failed test cache
-        id: cache-failed-tests
-        uses: actions/cache@v3
+      # Download the HTML report from the previous run
+      - name: Download previous test report artifact
+        uses: actions/download-artifact@v3
         with:
-          path: ./.pytest_cache
-          key: failed-tests-${{ github.ref }}  # Cache by branch to restore across runs on the same branch
+          name: test-report
+          path: previous-test-report
+        continue-on-error: true  # If there's no previous artifact, don't fail
 
-      # Run only previously failed tests if cache exists
+      # Parse the previous HTML report for failed tests and store them in a file
+      - name: Extract failed tests from previous run
+        run: |
+          python parse_html_report.py previous-test-report/report.html failed_tests.txt
+        continue-on-error: true
+
+      # Run only the previously failed tests if they exist
       - name: Run prioritized failed tests (if any)
-        if: steps.cache-failed-tests.outputs.cache-hit == 'true'
+        if: fileExists('failed_tests.txt')
         run: |
-          mkdir -p test-reports
-          pytest --last-failed --html=test-reports/failed-tests-report.html --self-contained-html || exit 1
+          pytest --html=test-reports/priority-report.html --self-contained-html --maxfail=1 $(< failed_tests.txt)
 
-      # Run all tests if no failed tests were found in the cache or if prioritized tests pass
+      # Run all tests and generate a full HTML report
       - name: Run all tests and generate full HTML report
-        if: steps.cache-failed-tests.outputs.cache-hit != 'true' || success()
         run: |
-          mkdir -p test-reports
-          pytest --html=test-reports/full-report.html --self-contained-html
+          pytest --html=test-reports/report.html --self-contained-html
 
-      # Save failed test cases for the next run
-      - name: Save failed test cache
-        if: failure()
-        run: echo "Caching failed tests for future runs..."
-
-      # Upload the HTML reports as artifacts
+      # Upload HTML report as artifact
       - name: Upload test report artifacts
         uses: actions/upload-artifact@v3
         with:
           name: test-report
-          path: test-reports/
-
-      # Upload the .pytest_cache as an artifact for inspection
-      - name: Upload failed test cache as artifact
-        if: failure()
-        uses: actions/upload-artifact@v3
-        with:
-          name: pytest-cache
-          path: ./.pytest_cache
+          path: test-reports/*.html
