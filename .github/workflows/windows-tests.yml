@@ -24,13 +24,51 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-html
 
+      # Step to restore cache of failed test cases
+      - name: Restore failed test cache
+        id: cache-failed-tests
+        uses: actions/cache@v3
+        with:
+          path: ./.pytest_cache
+          key: failed-tests-${{ github.ref }}  # Use a unique key for the branch or commit
+          restore-keys: |
+            failed-tests-
+
+      - name: Determine tests to run
+        run: |
+          if [ -f ./.pytest_cache/failed-tests.txt ]; then
+            echo "Rerunning previously failed tests..."
+            export TEST_LIST=$(cat ./.pytest_cache/failed-tests.txt)
+          else
+            echo "Running all tests..."
+            export TEST_LIST=""
+          fi
+        shell: bash
+
       - name: Run tests and generate HTML report
         run: |
-          mkdir test-reports
-          pytest --html=test-reports/report.html --self-contained-html
+          mkdir -p test-reports
+          if [ -z "$TEST_LIST" ]; then
+            pytest --html=test-reports/report.html --self-contained-html --junitxml=results.xml || true
+          else
+            pytest --html=test-reports/report.html --self-contained-html --junitxml=results.xml $TEST_LIST || true
 
+      - name: Process failed tests
+        run: |
+          mkdir -p ./.pytest_cache
+          pytest --last-failed --last-failed-no-failures all --junitxml=results.xml | tee ./.pytest_cache/failed-tests.txt
+        if: failure()
+
+      # Step to upload test report as an artifact
       - name: Upload HTML report
         uses: actions/upload-artifact@v3
         with:
           name: test-report
           path: test-reports/report.html
+
+      # Step to save failed test cache
+      - name: Save failed test cache
+        uses: actions/cache@v3
+        with:
+          path: ./.pytest_cache/failed-tests.txt
+          key: failed-tests-${{ github.ref }}
