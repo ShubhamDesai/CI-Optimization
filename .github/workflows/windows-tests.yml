@@ -24,37 +24,44 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-html
 
-      # Restore cache of previously failed tests
+      # Restore the cache of previously failed tests
       - name: Restore failed test cache
         id: cache-failed-tests
         uses: actions/cache@v3
         with:
-          path: failed-tests.txt
-          key: failed-tests-${{ github.ref }}
+          path: ./.pytest_cache
+          key: failed-tests-${{ github.ref }}  # Cache by branch to restore across runs on the same branch
 
       # Run only previously failed tests if cache exists
       - name: Run prioritized failed tests (if any)
         if: steps.cache-failed-tests.outputs.cache-hit == 'true'
         run: |
-          pytest --html=test-reports/prioritized-report.html --self-contained-html --last-failed --last-failed-no-failures all || echo "Some prioritized tests failed"
-          if [ $? -ne 0 ]; then
-            echo "Stopping workflow due to repeated failures in prioritized tests."
-            exit 1
-          fi
+          mkdir -p test-reports
+          pytest --last-failed --html=test-reports/failed-tests-report.html --self-contained-html || exit 1
 
-      # Run all tests if no failed tests were found in the cache
-      - name: Run all tests and generate HTML report
-        if: steps.cache-failed-tests.outputs.cache-hit != 'true'
+      # Run all tests if no failed tests were found in the cache or if prioritized tests pass
+      - name: Run all tests and generate full HTML report
+        if: steps.cache-failed-tests.outputs.cache-hit != 'true' || success()
         run: |
           mkdir -p test-reports
           pytest --html=test-reports/full-report.html --self-contained-html
 
-      # Save a list of failed tests for future runs
+      # Save failed test cases for the next run
       - name: Save failed test cache
         if: failure()
-        run: |
-          pytest --last-failed --last-failed-no-failures all --cache-clear --maxfail=1 --disable-warnings
-          pytest --collect-only | grep '::' | sed 's/<Module //' > failed-tests.txt
-      - uses: actions/upload-artifact@v3
+        run: echo "Caching failed tests for future runs..."
+
+      # Upload the HTML reports as artifacts
+      - name: Upload test report artifacts
+        uses: actions/upload-artifact@v3
         with:
-          name: failed
+          name: test-report
+          path: test-reports/
+
+      # Upload the .pytest_cache as an artifact for inspection
+      - name: Upload failed test cache as artifact
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: pytest-cache
+          path: ./.pytest_cache
