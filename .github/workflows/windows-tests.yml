@@ -1,4 +1,4 @@
-name: Run, Save, and Retrieve Test Results
+name: Run Tests, Save, and Retrieve Results
 
 on:
   push:
@@ -45,39 +45,7 @@ jobs:
           name: test-results
           path: retrieved-results
 
-      - name: Format and Display Test Results
+      - name: Display Retrieved Test Results
         run: |
-          import json
-
-          # Load the JSON test results
-          with open('retrieved-results/test_results.json', 'r') as file:
-              data = json.load(file)
-
-          # Extract summary
-          summary = data.get("summary", {})
-          passed = summary.get("passed", 0)
-          failed = summary.get("failed", 0)
-          total = summary.get("total", 0)
-
-          # Print Summary
-          print("\n📊 TEST RESULTS SUMMARY 📊")
-          print(f"✅ Passed: {passed}  ❌ Failed: {failed}  🔢 Total: {total}\n")
-
-          # Print Failed Tests
-          if failed > 0:
-              print("❌ FAILED TEST DETAILS:")
-              print("| Test Case | File | Line No. | Error |")
-              print("|-----------|------|---------|-------|")
-
-              for test in data.get("tests", []):
-                  if test["outcome"] == "failed":
-                      error_message = test["call"]["crash"]["message"]
-                      print(f"| {test['nodeid']} | {test['keywords'][1]} | {test['lineno']} | {error_message} |")
-
-          # Print Passed Tests
-          print("\n✅ PASSED TESTS:")
-          for test in data.get("tests", []):
-              if test["outcome"] == "passed":
-                  print(f"- {test['nodeid']}")
-
-        shell: python
+          echo "Retrieved Test Results:"
+          cat retrieved-results/test_results.json
