@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4  # Updated to v4
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4  # Updated to v4
         with:
           python-version: '3.x'
 
@@ -26,7 +26,7 @@ jobs:
 
       # Download previous test report from cache
       - name: Download previous test report artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4  # Updated to v4
         with:
           name: test-report
           path: previous-test-report
@@ -41,7 +41,7 @@ jobs:
       # Save extracted failed tests as an artifact for debugging
       - name: Upload failed tests list
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # Updated to v4
         with:
           name: failed-tests
           path: failed_tests.txt
@@ -60,15 +60,7 @@ jobs:
 
       # Upload the full test report
       - name: Upload test report artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # Updated to v4
         with:
           name: test-report
           path: test-reports/*.html
-
-      # Cache the test results for future runs
-      - name: Save test artifacts for reuse
-        uses: actions/cache@v3
-        with:
-          path: test-reports
-          key: test-reports-${{ github.run_id }}
-          restore-keys: test-reports-
