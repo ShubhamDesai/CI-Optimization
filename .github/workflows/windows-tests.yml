@@ -24,7 +24,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-html
 
-      # Download the HTML report from the previous run
+      # Download previous test report from cache
       - name: Download previous test report artifact
         uses: actions/download-artifact@v3
         with:
@@ -32,26 +32,43 @@ jobs:
           path: previous-test-report
         continue-on-error: true  # If there's no previous artifact, don't fail
 
-      # Parse the previous HTML report for failed tests and store them in a file
+      # Parse the previous HTML report for failed tests
       - name: Extract failed tests from previous run
+        id: extract-failed-tests
         run: |
-          python parse_html_report.py previous-test-report/report.html failed_tests.txt
+          python parse_html_report.py previous-test-report/report.html failed_tests.txt || echo "No previous failures"
+      
+      # Save extracted failed tests as an artifact for debugging
+      - name: Upload failed tests list
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: failed-tests
+          path: failed_tests.txt
         continue-on-error: true
 
-      # Conditionally run only the previously failed tests if they exist
-      - name: Run prioritized failed tests (if any)
-        if: ${{ success() && steps.extract-failed-tests.outputs.file-exists == 'true' }}
+      # Run prioritized failed tests (if any)
+      - name: Run prioritized failed tests
+        if: success() && hashFiles('failed_tests.txt') != ''
         run: |
-          pytest --html=test-reports/priority-report.html --self-contained-html --maxfail=1 $(< failed_tests.txt)
+          pytest --html=test-reports/priority-report.html --self-contained-html --maxfail=1 $(cat failed_tests.txt)
 
       # Run all tests and generate a full HTML report
       - name: Run all tests and generate full HTML report
         run: |
           pytest --html=test-reports/report.html --self-contained-html
 
-      # Upload HTML report as artifact
+      # Upload the full test report
       - name: Upload test report artifacts
         uses: actions/upload-artifact@v3
         with:
           name: test-report
           path: test-reports/*.html
+
+      # Cache the test results for future runs
+      - name: Save test artifacts for reuse
+        uses: actions/cache@v3
+        with:
+          path: test-reports
+          key: test-reports-${{ github.run_id }}
+          restore-keys: test-reports-
