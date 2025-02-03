@@ -25,18 +25,14 @@ jobs:
           pip install pytest pytest-json-report
 
       - name: Run Tests and Save Results
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
         run: |
-          pytest --tb=short --json-report --json-report-file=$TITLE_results.json || true
+          pytest --tb=short --json-report --json-report-file=test_results.json || true
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
         with:
           name: test-results
-          path: $TITLE_results.json
+          path: test_results.json
 
   retrieve-results:
     needs: run-tests
@@ -50,8 +46,6 @@ jobs:
           path: retrieved-results
 
       - name: Display Retrieved Test Results
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
         run: |
           echo "Retrieved Test Results:"
-          cat retrieved-results/$TITLE_results.json
+          cat retrieved-results/test_results.json
