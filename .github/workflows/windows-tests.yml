@@ -25,8 +25,10 @@ jobs:
           pip install pytest pytest-json-report
 
       - name: Run Tests and Save Results
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
         run: |
-          pytest --tb=short --json-report --json-report-file=test_results.json || true
+          pytest --tb=short --json-report --json-report-file=$TITLE_results.json || true
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
