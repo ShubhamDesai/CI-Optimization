@@ -11,3 +11,4 @@ def median(data):
         return (data_sorted[mid - 1] + data_sorted[mid]) / 2
     else:
         return data_sorted[mid]
+ # type: ignore
