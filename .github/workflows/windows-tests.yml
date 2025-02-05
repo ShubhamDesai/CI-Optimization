@@ -29,7 +29,9 @@ jobs:
           pytest --tb=short --json-report --json-report-file=test_results.json || true
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@v4/${{ github.event.pull_request.title }}
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        uses: actions/upload-artifact@v4/$PR_NUMBER
         with:
           name: test-results
           path: test_results.json
@@ -40,7 +42,9 @@ jobs:
 
     steps:
       - name: Download Test Results
-        uses: actions/download-artifact@v4/${{ github.event.pull_request.title }}
+        env:
+            PR_NUMBER: ${{ github.event.number }}
+        uses: actions/download-artifact@v4/$PR_NUMBER
         with:
           name: test-results
           path: retrieved-results
