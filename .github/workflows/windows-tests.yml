@@ -29,7 +29,8 @@ jobs:
           pytest --tb=short --json-report --json-report-file=test_results.json || true
 
       - name: Create Directory
-        run: mkdir -p "${{ github.event.number }}"
+        run: |
+          mkdir -p "${{ github.event.number }}"
 
       - name: Upload Test Results
         env:
