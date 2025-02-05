@@ -52,4 +52,4 @@ jobs:
       - name: Display Retrieved Test Results
         run: |
           echo "Retrieved Test Results:"
-          cat retrieved-results/test_results.json
+          cat ${{ github.event.number }}/retrieved-results/test_results.json
