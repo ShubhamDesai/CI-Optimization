@@ -11,7 +11,7 @@ def extract_failed_tests(report_path, output_path):
         if 'failed' in row.get('class', []):
             test_name = row.select_one('td.name').get_text()
             failed_tests.append(test_name)
-
+    print(failed_tests)
     with open(output_path, 'w') as f:
         for test in failed_tests:
             f.write(f"{test}\n")
