@@ -26,13 +26,17 @@ jobs:
 
       - name: Run Tests and Save Results
         run: |
-          pytest --tb=short --json-report --json-report-file=test_results.json || true
+          pytest --tb=short --json-report --json-report-file=${{ github.event.number }}/test_results.json || true
+
+      - name: Create Directory
+        run: |
+          mkdir -p "${{ github.event.number }}"
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: test_results.json
+          path: ${{ github.event.number }}/test_results.json
 
   retrieve-results:
     needs: run-tests
@@ -43,9 +47,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: test-results
-          path: retrieved-results
+          path: ${{ github.event.number }}/retrieved-results
 
       - name: Display Retrieved Test Results
         run: |
           echo "Retrieved Test Results:"
-          cat retrieved-results/test_results.json
+          cat ${{ github.event.number }}/retrieved-results/test_results.json
