@@ -26,7 +26,7 @@ jobs:
 
       - name: Run Tests and Save Results
         run: |
-          pytest --tb=short --json-report --json-report-file=test_results.json || true
+          pytest --tb=short --json-report --json-report-file=${{ github.event.number }}/test_results.json || true
 
       - name: Create Directory
         run: |
