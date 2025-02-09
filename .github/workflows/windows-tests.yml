@@ -50,14 +50,24 @@ jobs:
 
       - name: Run Tests and Save Results
         run: |
-          mkdir -p artifacts/pr-${PR_ID}
+          mkdir -p artifacts/pr-${PR_ID}  # Ensure directory exists
           pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json || true
+
+      - name: Debug: Check If Test Results Exist
+        run: |
+          if [[ -f "artifacts/pr-${PR_ID}/test_results.json" ]]; then
+            echo "✅ Test results file exists."
+            cat artifacts/pr-${PR_ID}/test_results.json  # Print contents for debugging
+          else
+            echo "❌ Test results file NOT found!"
+            exit 1  # Fail the workflow for debugging
+          fi
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         with:
           name: pr-${{ env.PR_ID }}-test-results
-          path: artifacts/pr-${PR_ID}/test_results.json
+          path: artifacts/pr-${{ env.PR_ID }}/test_results.json
 
   retrieve-results:
     needs: run-tests
