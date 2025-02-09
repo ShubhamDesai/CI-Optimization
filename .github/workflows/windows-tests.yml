@@ -35,10 +35,19 @@ jobs:
       - name: Retrieve Previous Artifacts (If Exists)
         run: |
           echo "Fetching previous test results for PR ${PR_ID}..."
-          ARTIFACT_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+
+          # Fetch list of artifacts from GitHub API
+          ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" \
-            | jq -r '.artifacts[] | select(.name=="pr-'${{ env.PR_ID }}-test-results") | .archive_download_url' || echo "")
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+
+          echo "Raw API Response: $ARTIFACTS_RESPONSE"  # Debugging output
+
+          # Extract artifact download URL safely
+          ARTIFACT_URL=$(echo "$ARTIFACTS_RESPONSE" | jq -r --arg PR "pr-${PR_ID}-test-results" \
+            '.artifacts[] | select(.name==$PR) | .archive_download_url' || echo "")
+
+          echo "Extracted Artifact URL: $ARTIFACT_URL"
 
           if [[ -n "$ARTIFACT_URL" && "$ARTIFACT_URL" != "null" ]]; then
             echo "Previous artifact found. Downloading..."
@@ -96,5 +105,7 @@ jobs:
 
       - name: Display Retrieved Test Results
         run: |
+          echo "======================================="
           echo "Retrieved Test Results from PR ${PR_ID}:"
           cat retrieved-results/test_results.json
+          echo "======================================="
