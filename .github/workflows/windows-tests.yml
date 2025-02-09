@@ -1,8 +1,6 @@
 name: Run Tests, Save, and Retrieve Results
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -25,12 +23,25 @@ jobs:
           pip install pytest pytest-json-report
 
       - name: Get PR ID
-        if: github.event_name == 'pull_request'
         run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
 
-      - name: Set Default Folder for Non-PR Runs
-        if: github.event_name != 'pull_request'
-        run: echo "PR_ID=main" >> $GITHUB_ENV
+      - name: Retrieve Previous Artifacts (If Exists)
+        run: |
+          echo "Fetching artifacts from previous runs..."
+          ARTIFACT_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" \
+            | jq -r '.artifacts[] | select(.name == "pr-'${{ env.PR_ID }}-test-results") | .archive_download_url')
+
+          if [[ "$ARTIFACT_URL" != "null" ]]; then
+            echo "Found previous artifacts. Downloading..."
+            mkdir -p artifacts/pr-${PR_ID}
+            curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                 -o artifacts/pr-${PR_ID}/test-results.zip "$ARTIFACT_URL"
+            unzip artifacts/pr-${PR_ID}/test-results.zip -d artifacts/pr-${PR_ID}
+          else
+            echo "No previous artifacts found. Running fresh tests."
+          fi
 
       - name: Run Tests and Save Results
         run: |
@@ -41,7 +52,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pr-${{ env.PR_ID }}-test-results
-          path: artifacts/pr-${{ env.PR_ID }}/test_results.json
+          path: artifacts/pr-${PR_ID}/test_results.json
 
   retrieve-results:
     needs: run-tests
@@ -49,14 +60,9 @@ jobs:
 
     steps:
       - name: Get PR ID
-        if: github.event_name == 'pull_request'
         run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
 
-      - name: Set Default Folder for Non-PR Runs
-        if: github.event_name != 'pull_request'
-        run: echo "PR_ID=main" >> $GITHUB_ENV
-
-      - name: Download Test Results
+      - name: Download PR Artifacts
         uses: actions/download-artifact@v4
         with:
           name: pr-${{ env.PR_ID }}-test-results
@@ -64,5 +70,7 @@ jobs:
 
       - name: Display Retrieved Test Results
         run: |
+          echo "======================================="
           echo "Retrieved Test Results from PR ${PR_ID}:"
           cat retrieved-results/test_results.json
+          echo "======================================="
