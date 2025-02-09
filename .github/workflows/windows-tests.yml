@@ -52,14 +52,14 @@ jobs:
 
           echo "Raw API Response: $ARTIFACTS_RESPONSE"
 
-          # Extract artifact download URL safely
+          # Extract the latest artifact URL using jq
           ARTIFACT_URL=$(echo "$ARTIFACTS_RESPONSE" | jq -r --arg PR "pr-${PR_ID}-test-results" \
-            '.artifacts[] | select(.name==$PR) | .archive_download_url' || echo "")
+            '[.artifacts[] | select(.name==$PR)] | sort_by(.created_at) | reverse | .[0].archive_download_url')
 
-          echo "Extracted Artifact URL: $ARTIFACT_URL"
+          echo "Extracted Latest Artifact URL: $ARTIFACT_URL"
 
           if [[ -n "$ARTIFACT_URL" && "$ARTIFACT_URL" != "null" ]]; then
-            echo "Previous artifact found. Downloading..."
+            echo "Latest artifact found. Downloading..."
             mkdir -p artifacts/pr-${PR_ID}
             curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                  -o artifacts/pr-${PR_ID}/test-results.zip "$ARTIFACT_URL"
