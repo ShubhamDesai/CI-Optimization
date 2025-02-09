@@ -64,6 +64,13 @@ jobs:
             curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                  -o artifacts/pr-${PR_ID}/test-results.zip "$ARTIFACT_URL"
             unzip -o artifacts/pr-${PR_ID}/test-results.zip -d artifacts/pr-${PR_ID}
+
+            # Print the contents of previous test results
+            echo "======================================="
+            echo "Previous Test Results for PR-${PR_ID}:"
+            cat artifacts/pr-${PR_ID}/test_results.json || echo "No previous test results found."
+            echo "======================================="
+
           else
             echo "No previous test results found for PR-${PR_ID}. Running fresh tests."
           fi
@@ -71,23 +78,9 @@ jobs:
       - name: Run Tests and Save Results
         run: |
           mkdir -p artifacts/pr-${PR_ID}
-          pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/new_test_results.json || true
+          pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json || true
 
-      - name: Merge Previous and New Test Results
-        run: |
-          PREV_RESULTS="artifacts/pr-${PR_ID}/test_results.json"
-          NEW_RESULTS="artifacts/pr-${PR_ID}/new_test_results.json"
-          FINAL_RESULTS="artifacts/pr-${PR_ID}/test_results.json"
-
-          if [[ -f "$PREV_RESULTS" ]]; then
-            echo "Merging previous and new test results..."
-            jq -s '.[0] * .[1]' "$PREV_RESULTS" "$NEW_RESULTS" > "$FINAL_RESULTS"
-          else
-            echo "No previous results found. Using new test results only."
-            mv "$NEW_RESULTS" "$FINAL_RESULTS"
-          fi
-
-      - name: Upload Test Results
+      - name: Upload New Test Results
         uses: actions/upload-artifact@v4
         with:
           name: pr-${{ env.PR_ID }}-test-results
