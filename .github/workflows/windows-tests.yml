@@ -24,28 +24,45 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-json-report
 
+      - name: Get PR ID
+        if: github.event_name == 'pull_request'
+        run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
+
+      - name: Set Default Folder for Non-PR Runs
+        if: github.event_name != 'pull_request'
+        run: echo "PR_ID=main" >> $GITHUB_ENV
+
       - name: Run Tests and Save Results
         run: |
-          pytest --tb=short --json-report --json-report-file=test_results.json || true
+          mkdir -p artifacts/pr-${PR_ID}
+          pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json || true
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: test_results.json
+          name: pr-${{ env.PR_ID }}-test-results
+          path: artifacts/pr-${{ env.PR_ID }}/test_results.json
 
   retrieve-results:
     needs: run-tests
     runs-on: ubuntu-latest
 
     steps:
+      - name: Get PR ID
+        if: github.event_name == 'pull_request'
+        run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
+
+      - name: Set Default Folder for Non-PR Runs
+        if: github.event_name != 'pull_request'
+        run: echo "PR_ID=main" >> $GITHUB_ENV
+
       - name: Download Test Results
         uses: actions/download-artifact@v4
         with:
-          name: test-results
+          name: pr-${{ env.PR_ID }}-test-results
           path: retrieved-results
 
       - name: Display Retrieved Test Results
         run: |
-          echo "Retrieved Test Results:"
+          echo "Retrieved Test Results from PR ${PR_ID}:"
           cat retrieved-results/test_results.json
