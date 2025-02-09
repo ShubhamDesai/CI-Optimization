@@ -1,8 +1,6 @@
-name: Run Tests, Save, and Retrieve Results
+name: PR Test Results Storage
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -24,28 +22,60 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-json-report
 
+      - name: Get PR ID
+        run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
+
+      - name: Retrieve Previous Artifacts (If Exists)
+        run: |
+          echo "Fetching artifacts from previous runs..."
+          ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+
+          echo "Raw API Response: $ARTIFACTS_RESPONSE"
+
+          ARTIFACT_URL=$(echo "$ARTIFACTS_RESPONSE" | jq -r '.artifacts[] | select(.name=="pr-'${{ env.PR_ID }}'-test-results") | .archive_download_url' || echo "")
+
+          echo "Fetched Artifact URL: $ARTIFACT_URL"
+
+          if [[ -z "$ARTIFACT_URL" || "$ARTIFACT_URL" == "null" ]]; then
+            echo "No previous artifacts found for PR-${PR_ID}. Running fresh tests."
+          else
+            echo "Found previous artifacts. Downloading..."
+            mkdir -p artifacts/pr-${PR_ID}
+            curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                 -o artifacts/pr-${PR_ID}/test-results.zip "$ARTIFACT_URL"
+            unzip -o artifacts/pr-${PR_ID}/test-results.zip -d artifacts/pr-${PR_ID}
+          fi
+
       - name: Run Tests and Save Results
         run: |
-          pytest --tb=short --json-report --json-report-file=test_results.json || true
+          mkdir -p artifacts/pr-${PR_ID}
+          pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json || true
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: test_results.json
+          name: pr-${{ env.PR_ID }}-test-results
+          path: artifacts/pr-${PR_ID}/test_results.json
 
   retrieve-results:
     needs: run-tests
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Test Results
+      - name: Get PR ID
+        run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
+
+      - name: Download PR Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: test-results
+          name: pr-${{ env.PR_ID }}-test-results
           path: retrieved-results
 
       - name: Display Retrieved Test Results
         run: |
-          echo "Retrieved Test Results:"
+          echo "======================================="
+          echo "Retrieved Test Results from PR ${PR_ID}:"
           cat retrieved-results/test_results.json
+          echo "======================================="
