@@ -38,7 +38,7 @@ jobs:
 
           echo "Fetched Artifact URL: $ARTIFACT_URL"
 
-          if [[ -z "$ARTIFACT_URL" || "$ARTIFACT_URL" == "null" ]]; then
+          if [ -z "$ARTIFACT_URL" ] || [ "$ARTIFACT_URL" == "null" ]; then
             echo "No previous artifacts found for PR-${PR_ID}. Running fresh tests."
           else
             echo "Found previous artifacts. Downloading..."
@@ -55,7 +55,7 @@ jobs:
 
       - name: Debug: Check If Test Results Exist
         run: |
-          if [[ -f "artifacts/pr-${PR_ID}/test_results.json" ]]; then
+          if [ -f "artifacts/pr-${PR_ID}/test_results.json" ]; then
             echo "Test results file exists."
             cat artifacts/pr-${PR_ID}/test_results.json  # Print contents for debugging
           else
