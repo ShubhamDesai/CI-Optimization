@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  actions: read  # ✅ Allows GitHub Actions to fetch artifacts
+  actions: read  #  Allows GitHub Actions to fetch artifacts
 
 jobs:
   run-tests:
@@ -111,3 +111,5 @@ jobs:
           echo "Retrieved Test Results from PR ${PR_ID}:"
           cat retrieved-results/test_results.json
           echo "======================================="
+
+
