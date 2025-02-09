@@ -1,6 +1,9 @@
-name: PR Test Results Storage
+
+name: Run Tests, Save, and Retrieve Results
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -23,47 +26,17 @@ jobs:
           pip install pytest pytest-json-report
 
       - name: Get PR ID
+        if: github.event_name == 'pull_request'
         run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
 
-      - name: Retrieve Previous Artifacts (If Exists)
-        run: |
-          echo "Fetching artifacts from previous runs..."
-          ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
-
-          echo "Raw API Response: $ARTIFACTS_RESPONSE"
-
-          ARTIFACT_URL=$(echo "$ARTIFACTS_RESPONSE" | jq -r '.artifacts[] | select(.name=="pr-'${{ env.PR_ID }}'-test-results") | .archive_download_url' || echo "")
-
-          echo "Fetched Artifact URL: $ARTIFACT_URL"
-
-          if [ -z "$ARTIFACT_URL" ] || [ "$ARTIFACT_URL" == "null" ]; then
-              echo "No previous artifacts found for PR-${PR_ID}. Running fresh tests."
-          else
-              echo "Found previous artifacts. Downloading..."
-              mkdir -p artifacts/pr-${PR_ID}
-              curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                   -o artifacts/pr-${PR_ID}/test-results.zip "$ARTIFACT_URL"
-              unzip -o artifacts/pr-${PR_ID}/test-results.zip -d artifacts/pr-${PR_ID}
-          fi
+      - name: Set Default Folder for Non-PR Runs
+        if: github.event_name != 'pull_request'
+        run: echo "PR_ID=main" >> $GITHUB_ENV
 
       - name: Run Tests and Save Results
         run: |
-          mkdir -p artifacts/pr-${PR_ID}  # Ensure directory exists
+          mkdir -p artifacts/pr-${PR_ID}
           pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json || true
-
-      - name: Debug: Check If Test Results Exist
-        run: |
-          FILE_PATH="artifacts/pr-${PR_ID}/test_results.json"
-          
-          if [ -f "$FILE_PATH" ]; then
-              echo "Test results file exists."
-              cat "$FILE_PATH"
-          else
-              echo "Test results file NOT found!"
-              exit 1
-          fi
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
@@ -77,9 +50,14 @@ jobs:
 
     steps:
       - name: Get PR ID
+        if: github.event_name == 'pull_request'
         run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
 
-      - name: Download PR Artifacts
+      - name: Set Default Folder for Non-PR Runs
+        if: github.event_name != 'pull_request'
+        run: echo "PR_ID=main" >> $GITHUB_ENV
+
+      - name: Download Test Results
         uses: actions/download-artifact@v4
         with:
           name: pr-${{ env.PR_ID }}-test-results
@@ -87,7 +65,5 @@ jobs:
 
       - name: Display Retrieved Test Results
         run: |
-          echo "======================================="
           echo "Retrieved Test Results from PR ${PR_ID}:"
           cat retrieved-results/test_results.json
-          echo "======================================="
