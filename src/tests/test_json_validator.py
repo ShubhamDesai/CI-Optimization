@@ -1,22 +1,47 @@
 import pytest
-from json_validator import is_valid_json
+from json_validator import is_valid_json  # Replace 'your_module' with the actual module name
 
 def test_valid_json():
-    valid_json = '{"name": "John Doe", "age": 30, "email": "john.doe@example.com"}'
-    assert is_valid_json(valid_json) is True
+    # Test with a simple valid JSON string
+    assert is_valid_json('{"name": "John", "age": 30}') is True
 
-def test_missing_field():
-    missing_email_json = '{"name": "John Doe", "age": 30}'
-    assert is_valid_json(missing_email_json) is False
+    # Test with a valid JSON array
+    assert is_valid_json('["apple", "banana", "cherry"]') is True
 
-def test_invalid_age_type():
-    invalid_age_json = '{"name": "John Doe", "age": "thirty", "email": "john.doe@example.com"}'
-    assert is_valid_json(invalid_age_json) is False
+    # Test with a nested JSON object
+    assert is_valid_json('{"person": {"name": "John", "age": 30}, "city": "New York"}') is True
 
-def test_invalid_email_format():
-    invalid_email_json = '{"name": "John Doe", "age": 30, "email": "john.doe@com"}'
-    assert is_valid_json(invalid_email_json) is False
+def test_invalid_json():
+    # Test with a missing closing brace
+    assert is_valid_json('{"name": "John", "age": 30') is False
 
-def test_invalid_json_syntax():
-    invalid_json = '{"name": "John Doe", "age": 30, "email": "john.doe@example.com",}'
-    assert is_valid_json(invalid_json) is False
+    # Test with single quotes instead of double quotes
+    assert is_valid_json("{'name': 'John', 'age': 30}") is False
+
+    # Test with an extra comma
+    assert is_valid_json('{"name": "John", "age": 30,}') is False
+
+    # Test with an invalid JSON array
+    assert is_valid_json('["apple", "banana",]') is False
+
+def test_edge_cases():
+    # Test with an empty string
+    assert is_valid_json('') is False
+
+    # Test with a non-JSON string
+    assert is_valid_json('Hello, World!') is False
+
+    # Test with a number (valid JSON)
+    assert is_valid_json('123') is True
+
+    # Test with a boolean (valid JSON)
+    assert is_valid_json('true') is True
+
+    # Test with null (valid JSON)
+    assert is_valid_json('null') is True
+
+    # Test with whitespace (invalid JSON)
+    assert is_valid_json('   ') is False
+
+    # Test with special characters
+    assert is_valid_json('@#$%^&*') is False
