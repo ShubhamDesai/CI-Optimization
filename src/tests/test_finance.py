@@ -9,7 +9,7 @@ def test_simple_interest():
 
 def test_compound_interest():
     result = compound_interest(1000, 5, 2, 4)
-    assert result == pytest.approx(104.0816, rel=1e-5)
+    assert round(result, 5) == 104.4861
     assert compound_interest(0, 5, 2, 4) == 0
     assert compound_interest(1000, 0, 2, 4) == 0
     assert compound_interest(1000, 5, 0, 4) == 0
