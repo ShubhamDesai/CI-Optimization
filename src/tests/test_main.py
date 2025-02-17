@@ -18,7 +18,6 @@ def test_multiply():
     assert multiply(4, 0) == 0
     assert multiply(-2, 5) == -10
     assert multiply(-3, -3) == 9
-#for triggering CI"
 
 def test_divide():
     assert divide(6, 3) == 2
