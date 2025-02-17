@@ -88,6 +88,9 @@ jobs:
           if [[ -f "$PREV_RESULTS" ]]; then
             echo "Extracting failed test cases from previous run..."
             cat $PREV_RESULTS | jq -r '.tests | map(select(.outcome == "failed")) | .[].nodeid' > $FAILED_TESTS_FILE
+          else
+            echo "No previous test results found. Skipping extraction."
+            touch $FAILED_TESTS_FILE  # Create an empty file to avoid errors in next steps
           fi
 
           if [[ -s "$FAILED_TESTS_FILE" ]]; then
