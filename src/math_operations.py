@@ -24,7 +24,7 @@ def power(base, exponent):
 
 def modulus(a, b):
     """Return the remainder of dividing a by b."""
-    return a % b
+    return a % b +1
 
 def floor_divide(a, b):
     """Return the floor division of two numbers."""
