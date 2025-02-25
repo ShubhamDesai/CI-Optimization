@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-json-report jq
+          pip install pytest pytest-json-report pytest-html jq
 
       - name: Get PR ID
         if: github.event_name == 'pull_request'
@@ -56,7 +56,6 @@ jobs:
         if: env.PREV_ARTIFACT_EXISTS == 'true'
         run: |
           echo "Fetching previous test results for PR ${PR_ID}..."
-
           ARTIFACT_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" | \
@@ -111,7 +110,8 @@ jobs:
 
           if [[ -s "$FAILED_TESTS_FILE" ]]; then
             echo "Rerunning previously failed tests first..."
-            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json $(cat $FAILED_TESTS_FILE) || true
+            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json \
+                   --html=artifacts/pr-${PR_ID}/temp_test_report.html --self-contained-html $(cat $FAILED_TESTS_FILE) || true
           else
             echo "No previously failed tests found."
           fi
@@ -153,16 +153,19 @@ jobs:
 
           if [[ -s "$REMAINING_TESTS_FILE" ]]; then
             echo "Running remaining test cases..."
-            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json $(cat $REMAINING_TESTS_FILE) || true
+            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json \
+                   --html=artifacts/pr-${PR_ID}/test_report.html --self-contained-html $(cat $REMAINING_TESTS_FILE) || true
           else
             echo "No remaining tests to run."
           fi
 
-      - name: Upload New Test Results
+      - name: Upload New Test Results (JSON + HTML Report)
         uses: actions/upload-artifact@v4
         with:
           name: pr-${{ env.PR_ID }}-test-results
-          path: artifacts/pr-${{ env.PR_ID }}/test_results.json
+          path: |
+            artifacts/pr-${{ env.PR_ID }}/test_results.json
+            artifacts/pr-${{ env.PR_ID }}/test_report.html
 
   retrieve-results:
     needs: run-tests
@@ -189,3 +192,8 @@ jobs:
           echo "Retrieved Test Results from PR ${PR_ID}:"
           cat retrieved-results/test_results.json
           echo "======================================="
+
+      - name: Print HTML Report Location
+        run: |
+          echo "Your test report is available for download."
+          echo "[Click here to download the HTML report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
