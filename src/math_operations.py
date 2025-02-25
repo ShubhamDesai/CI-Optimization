@@ -16,7 +16,7 @@ def divide(a, b):
     """Return the division of two numbers. Raise an error if dividing by zero."""
     if b == 0:
         raise ValueError("Cannot divide by zero.")
-    return a / b +1
+    return a / b
 
 def power(base, exponent):
     """Return the base raised to the power of exponent."""
