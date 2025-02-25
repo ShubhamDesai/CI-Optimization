@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-json-report jq
+          pip install pytest pytest-json-report pytest-html jq
 
       - name: Get PR ID
         if: github.event_name == 'pull_request'
@@ -56,7 +56,6 @@ jobs:
         if: env.PREV_ARTIFACT_EXISTS == 'true'
         run: |
           echo "Fetching previous test results for PR ${PR_ID}..."
-
           ARTIFACT_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" | \
@@ -87,6 +86,7 @@ jobs:
           ALL_TESTS_FILE="artifacts/pr-${PR_ID}/all_tests.txt"
           REMAINING_TESTS_FILE="artifacts/pr-${PR_ID}/remaining_tests.txt"
 
+          # Collect all test cases in the project
           pytest --collect-only --quiet | grep "::" > $ALL_TESTS_FILE || true
 
           if [[ -f "$PREV_RESULTS" ]]; then
@@ -94,7 +94,7 @@ jobs:
             cat $PREV_RESULTS | jq -r '.tests | map(select(.outcome == "failed")) | .[].nodeid' > $FAILED_TESTS_FILE
           else
             echo "No previous test results found. Skipping extraction."
-            touch $FAILED_TESTS_FILE
+            touch $FAILED_TESTS_FILE  # Create an empty file to avoid errors in next steps
           fi
 
           if [[ -s "$FAILED_TESTS_FILE" ]]; then
@@ -110,7 +110,8 @@ jobs:
 
           if [[ -s "$FAILED_TESTS_FILE" ]]; then
             echo "Rerunning previously failed tests first..."
-            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json $(cat $FAILED_TESTS_FILE) || true
+            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json \
+                   --html=artifacts/pr-${PR_ID}/temp_test_report.html --self-contained-html $(cat $FAILED_TESTS_FILE) || true
           else
             echo "No previously failed tests found."
           fi
@@ -121,12 +122,13 @@ jobs:
           FAILED_AGAIN_FILE="artifacts/pr-${PR_ID}/failed_again.txt"
 
           if [[ -f "$TEMP_RESULTS" ]]; then
+            echo "Checking if any tests failed again..."
             cat $TEMP_RESULTS | jq -r '.tests | map(select(.outcome == "failed")) | .[].nodeid' > $FAILED_AGAIN_FILE
           fi
 
           if [[ -s "$FAILED_AGAIN_FILE" ]]; then
             echo "Some tests failed again. Stopping execution."
-            exit 1
+            exit 1  # Fail workflow if tests fail again
           fi
 
       - name: Identify Remaining Untested Test Cases
@@ -151,45 +153,47 @@ jobs:
 
           if [[ -s "$REMAINING_TESTS_FILE" ]]; then
             echo "Running remaining test cases..."
-            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json $(cat $REMAINING_TESTS_FILE) || true
+            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/test_results.json \
+                   --html=artifacts/pr-${PR_ID}/test_report.html --self-contained-html $(cat $REMAINING_TESTS_FILE) || true
           else
             echo "No remaining tests to run."
           fi
 
-      - name: Generate HTML Test Report
-        run: |
-          REPORT_FILE="artifacts/pr-${PR_ID}/test_report.html"
-          echo "<html><head><title>Test Report</title></head><body>" > $REPORT_FILE
-          echo "<h2>Test Report for PR-${PR_ID}</h2>" >> $REPORT_FILE
-          echo "<table border='1'><tr><th>Test Case</th><th>Status</th></tr>" >> $REPORT_FILE
-
-          jq -r '.tests[] | "<tr><td>" + .nodeid + "</td><td>" + .outcome + "</td></tr>"' artifacts/pr-${PR_ID}/test_results.json >> $REPORT_FILE
-
-          echo "</table></body></html>" >> $REPORT_FILE
-
-      - name: Upload Test Artifacts
+      - name: Upload New Test Results (JSON + HTML Report)
         uses: actions/upload-artifact@v4
         with:
           name: pr-${{ env.PR_ID }}-test-results
-          path: artifacts/pr-${PR_ID}/test_results.json
-
-      - name: Upload HTML Test Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: pr-${{ env.PR_ID }}-test-report
-          path: artifacts/pr-${PR_ID}/test_report.html
+          path: |
+            artifacts/pr-${{ env.PR_ID }}/test_results.json
+            artifacts/pr-${{ env.PR_ID }}/test_report.html
 
   retrieve-results:
     needs: run-tests
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download and Display Test Reports
+      - name: Get PR ID
+        if: github.event_name == 'pull_request'
+        run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
+
+      - name: Set Default Folder for Non-PR Runs
+        if: github.event_name != 'pull_request'
+        run: echo "PR_ID=main" >> $GITHUB_ENV
+
+      - name: Download Test Results
         uses: actions/download-artifact@v4
         with:
-          name: pr-${{ env.PR_ID }}-test-report
+          name: pr-${{ env.PR_ID }}-test-results
           path: retrieved-results
 
-      - name: Display Report Path
+      - name: Display Retrieved Test Results
         run: |
-          echo "View the HTML Test Report at: retrieved-results/test_report.html"
+          echo "======================================="
+          echo "Retrieved Test Results from PR ${PR_ID}:"
+          cat retrieved-results/test_results.json
+          echo "======================================="
+
+      - name: Print HTML Report Location
+        run: |
+          echo "Your test report is available for download."
+          echo "[Click here to download the HTML report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
