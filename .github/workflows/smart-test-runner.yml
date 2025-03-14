@@ -1,0 +1,209 @@
+name: Smart Test Runner
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version to use'
+        required: false
+        default: '3.x'
+        type: string
+      test-command:
+        description: 'Command to run tests'
+        required: false
+        default: 'pytest'
+        type: string
+      test-args:
+        description: 'Arguments for test command'
+        required: false
+        default: '--tb=short --json-report'
+        type: string
+      artifact-retention-days:
+        description: 'Number of days to retain artifacts'
+        required: false
+        default: 7
+        type: number
+      fail-on-error:
+        description: 'Fail workflow if tests fail'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  actions: read  # Allows GitHub Actions to fetch artifacts
+
+jobs:
+  smart-test-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ${{ inputs.test-command }} pytest-json-report jq
+
+      - name: Get PR ID
+        if: github.event_name == 'pull_request'
+        run: echo "PR_ID=${{ github.event.number }}" >> $GITHUB_ENV
+
+      - name: Set Default Folder for Non-PR Runs
+        if: github.event_name != 'pull_request'
+        run: echo "PR_ID=main" >> $GITHUB_ENV
+
+      - name: Check If Previous Artifacts Exist
+        id: check_artifacts
+        run: |
+          echo "Checking if previous test results exist for PR-${PR_ID}..."
+          ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+
+          ARTIFACT_COUNT=$(echo "$ARTIFACTS_RESPONSE" | jq -r --arg PR "pr-${PR_ID}-test-results" \
+            '[.artifacts[] | select(.name==$PR)] | length')
+
+          if [[ "$ARTIFACT_COUNT" -gt 0 ]]; then
+            echo "PREV_ARTIFACT_EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "PREV_ARTIFACT_EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Retrieve Previous Artifacts (If Exists)
+        if: env.PREV_ARTIFACT_EXISTS == 'true'
+        run: |
+          echo "Fetching previous test results for PR ${PR_ID}..."
+
+          ARTIFACT_URL=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" | \
+            jq -r --arg PR "pr-${PR_ID}-test-results" \
+            '[.artifacts[] | select(.name==$PR)] | sort_by(.created_at) | reverse | .[0].archive_download_url')
+
+          if [[ -n "$ARTIFACT_URL" && "$ARTIFACT_URL" != "null" ]]; then
+            echo "Latest artifact found. Downloading..."
+            mkdir -p artifacts/pr-${PR_ID}
+            curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                 -o artifacts/pr-${PR_ID}/test-results.zip "$ARTIFACT_URL"
+            unzip -o artifacts/pr-${PR_ID}/test-results.zip -d artifacts/pr-${PR_ID}
+
+            echo "======================================="
+            echo "Previous Test Results for PR-${PR_ID}:"
+            cat artifacts/pr-${PR_ID}/test_results.json || echo "No previous test results found."
+            echo "======================================="
+
+          else
+            echo "No previous test results found for PR-${PR_ID}. Running fresh tests."
+          fi
+
+      - name: Collect All Test Cases
+        run: |
+          mkdir -p artifacts/pr-${PR_ID}
+          ${{ inputs.test-command }} --collect-only --quiet | grep "::" > artifacts/pr-${PR_ID}/all_tests.txt || true
+          echo "Found $(wc -l < artifacts/pr-${PR_ID}/all_tests.txt) test cases to run."
+
+      - name: Extract Failed Tests from Previous Run
+        run: |
+          PREV_RESULTS="artifacts/pr-${PR_ID}/test_results.json"
+          FAILED_TESTS_FILE="artifacts/pr-${PR_ID}/failed_tests.txt"
+
+          if [[ -f "$PREV_RESULTS" ]]; then
+            echo "Extracting failed test cases from previous run..."
+            cat $PREV_RESULTS | jq -r '.tests | map(select(.outcome == "failed")) | .[].nodeid' > $FAILED_TESTS_FILE
+          else
+            echo "No previous test results found. Skipping extraction."
+            touch $FAILED_TESTS_FILE  # Create an empty file to avoid errors
+          fi
+
+          if [[ -s "$FAILED_TESTS_FILE" ]]; then
+            echo "Found $(wc -l < $FAILED_TESTS_FILE) failed tests from previous run."
+            echo "Failed tests:"
+            cat $FAILED_TESTS_FILE
+          else
+            echo "No previously failed tests found."
+          fi
+
+      - name: Run Previously Failed Tests First
+        if: env.PREV_ARTIFACT_EXISTS == 'true'
+        run: |
+          FAILED_TESTS_FILE="artifacts/pr-${PR_ID}/failed_tests.txt"
+
+          if [[ -s "$FAILED_TESTS_FILE" ]]; then
+            echo "Rerunning previously failed tests first..."
+            ${{ inputs.test-command }} ${{ inputs.test-args }} --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json $(cat $FAILED_TESTS_FILE) || true
+          else
+            echo "No previously failed tests to run."
+          fi
+
+      - name: Check If Any Tests Failed Again
+        if: env.PREV_ARTIFACT_EXISTS == 'true' && inputs.fail-on-error == true
+        run: |
+          TEMP_RESULTS="artifacts/pr-${PR_ID}/temp_test_results.json"
+          FAILED_AGAIN_FILE="artifacts/pr-${PR_ID}/failed_again.txt"
+
+          if [[ -f "$TEMP_RESULTS" ]]; then
+            echo "Checking if any tests failed again..."
+            cat $TEMP_RESULTS | jq -r '.tests | map(select(.outcome == "failed")) | .[].nodeid' > $FAILED_AGAIN_FILE
+          fi
+
+          if [[ -s "$FAILED_AGAIN_FILE" ]]; then
+            echo "Some tests failed again. Stopping execution."
+            echo "Failed tests:"
+            cat $FAILED_AGAIN_FILE
+            exit 1  # Fail workflow if tests fail again
+          fi
+
+      - name: Identify Remaining Untested Test Cases
+        run: |
+          FAILED_TESTS_FILE="artifacts/pr-${PR_ID}/failed_tests.txt"
+          ALL_TESTS_FILE="artifacts/pr-${PR_ID}/all_tests.txt"
+          REMAINING_TESTS_FILE="artifacts/pr-${PR_ID}/remaining_tests.txt"
+
+          echo "Finding remaining tests to run..."
+          grep -v -F -f $FAILED_TESTS_FILE $ALL_TESTS_FILE > $REMAINING_TESTS_FILE || true
+
+          if [[ -s "$REMAINING_TESTS_FILE" ]]; then
+            echo "Found $(wc -l < $REMAINING_TESTS_FILE) remaining tests to run."
+          else
+            echo "No remaining tests to run."
+          fi
+
+      - name: Run Remaining Test Cases or All Tests
+        run: |
+          REMAINING_TESTS_FILE="artifacts/pr-${PR_ID}/remaining_tests.txt"
+          TEST_RESULTS_FILE="artifacts/pr-${PR_ID}/test_results.json"
+
+          if [[ "$PREV_ARTIFACT_EXISTS" == "true" && -s "$REMAINING_TESTS_FILE" ]]; then
+            echo "Running remaining test cases..."
+            ${{ inputs.test-command }} ${{ inputs.test-args }} --json-report-file=$TEST_RESULTS_FILE $(cat $REMAINING_TESTS_FILE) || true
+          else
+            echo "Running all test cases..."
+            ${{ inputs.test-command }} ${{ inputs.test-args }} --json-report-file=$TEST_RESULTS_FILE || true
+          fi
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-${{ env.PR_ID }}-test-results
+          path: artifacts/pr-${{ env.PR_ID }}/test_results.json
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Generate Test Report
+        run: |
+          TEST_RESULTS_FILE="artifacts/pr-${PR_ID}/test_results.json"
+          if [[ -f "$TEST_RESULTS_FILE" ]]; then
+            echo "=============== Test Report Summary ==============="
+            echo "Total Tests: $(cat $TEST_RESULTS_FILE | jq '.summary.total')"
+            echo "Passed Tests: $(cat $TEST_RESULTS_FILE | jq '.summary.passed')"
+            echo "Failed Tests: $(cat $TEST_RESULTS_FILE | jq '.summary.failed')"
+            echo "Skipped Tests: $(cat $TEST_RESULTS_FILE | jq '.summary.skipped')"
+            echo "=================================================="
+          else
+            echo "No test results file found."
+          fi
