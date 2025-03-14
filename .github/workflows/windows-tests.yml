@@ -8,6 +8,8 @@ on:
 
 jobs:
   test:
+    permissions:
+      actions: read  # Grant read permissions for actions
     uses: ./.github/workflows/smart-test-runner.yml
     with:
       python-version: '3.10'
