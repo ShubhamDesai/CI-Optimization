@@ -179,15 +179,17 @@ jobs:
           
           TEMP_RESULTS="artifacts/pr-${PR_ID}/temp_test_results.json"
           FINAL_RESULTS="artifacts/pr-${PR_ID}/test_results.json"
+          MERGED_RESULTS="artifacts/pr-${PR_ID}/merged_test_results.json"
 
-          if [[ -f "$TEMP_RESULTS" ]]; then
-            jq -s '.[0].tests + .[1].tests | {tests: .}' "$TEMP_RESULTS" "$FINAL_RESULTS" > artifacts/pr-${PR_ID}/merged_test_results.json
-            mv artifacts/pr-${PR_ID}/merged_test_results.json "$FINAL_RESULTS"
+          if [[ -f "$TEMP_RESULTS" && -f "$FINAL_RESULTS" ]]; then
+            jq -s '.[0].tests + .[1].tests | {tests: .}' "$TEMP_RESULTS" "$FINAL_RESULTS" > "$MERGED_RESULTS"
+            mv "$MERGED_RESULTS" "$FINAL_RESULTS"
           fi
 
-          echo "Generating final HTML report with all test results..."
-          pytest --json-report --json-report-file="$FINAL_RESULTS" \
-                 --html=artifacts/pr-${PR_ID}/final_test_report.html --self-contained-html || true
+          echo "Generating final HTML report from merged results..."
+          cp artifacts/pr-${PR_ID}/test_report.html artifacts/pr-${PR_ID}/final_test_report.html
+          cat artifacts/pr-${PR_ID}/temp_test_report.html >> artifacts/pr-${PR_ID}/final_test_report.html
+
 
 
       - name: Upload New Test Results (JSON + HTML Report)
