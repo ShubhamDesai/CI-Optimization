@@ -110,11 +110,22 @@ jobs:
 
           if [[ -s "$FAILED_TESTS_FILE" ]]; then
             echo "Rerunning previously failed tests first..."
-            pytest --tb=short --json-report --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json \
-                   --html=artifacts/pr-${PR_ID}/temp_test_report.html --self-contained-html $(cat $FAILED_TESTS_FILE) || true
+            
+            # Read failed test cases into an array
+            mapfile -t FAILED_TESTS < <(grep -v '^$' "$FAILED_TESTS_FILE")
+
+            if [[ ${#FAILED_TESTS[@]} -gt 0 ]]; then
+              echo "Running failed tests: ${FAILED_TESTS[@]}"
+              
+              pytest --tb=long --json-report --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json \
+                     --html=artifacts/pr-${PR_ID}/temp_test_report.html --self-contained-html "${FAILED_TESTS[@]}" || true
+            else
+              echo "No valid failed tests found to rerun."
+            fi
           else
             echo "No previously failed tests found."
           fi
+
 
       - name: Check If Any Tests Failed Again
         run: |
