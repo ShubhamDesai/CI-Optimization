@@ -119,12 +119,15 @@ jobs:
               
               pytest --tb=long --json-report --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json \
                      --html=artifacts/pr-${PR_ID}/temp_test_report.html --self-contained-html "${FAILED_TESTS[@]}" || true
+
+              echo "Finished running previously failed tests."
             else
               echo "No valid failed tests found to rerun."
             fi
           else
             echo "No previously failed tests found."
           fi
+
 
 
       - name: Check If Any Tests Failed Again
@@ -170,12 +173,22 @@ jobs:
             echo "No remaining tests to run."
           fi
 
-      - name: Merge HTML Reports (if necessary)
+      - name: Merge Test Results and Generate Final HTML Report
         run: |
-          if [[ -f "artifacts/pr-${PR_ID}/temp_test_report.html" ]]; then
-            echo "Merging previously failed test report with final test report..."
-            cat artifacts/pr-${PR_ID}/temp_test_report.html >> artifacts/pr-${PR_ID}/test_report.html
+          echo "Merging JSON results from previous and remaining tests..."
+          
+          TEMP_RESULTS="artifacts/pr-${PR_ID}/temp_test_results.json"
+          FINAL_RESULTS="artifacts/pr-${PR_ID}/test_results.json"
+
+          if [[ -f "$TEMP_RESULTS" ]]; then
+            jq -s '.[0].tests + .[1].tests | {tests: .}' "$TEMP_RESULTS" "$FINAL_RESULTS" > artifacts/pr-${PR_ID}/merged_test_results.json
+            mv artifacts/pr-${PR_ID}/merged_test_results.json "$FINAL_RESULTS"
           fi
+
+          echo "Generating final HTML report with all test results..."
+          pytest --json-report --json-report-file="$FINAL_RESULTS" \
+                 --html=artifacts/pr-${PR_ID}/final_test_report.html --self-contained-html || true
+
 
       - name: Upload New Test Results (JSON + HTML Report)
         uses: actions/upload-artifact@v4
@@ -183,7 +196,8 @@ jobs:
           name: pr-${{ env.PR_ID }}-test-results
           path: |
             artifacts/pr-${{ env.PR_ID }}/test_results.json
-            artifacts/pr-${{ env.PR_ID }}/test_report.html
+            artifacts/pr-${{ env.PR_ID }}/final_test_report.html
+
 
   retrieve-results:
     needs: run-tests
