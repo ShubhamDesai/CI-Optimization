@@ -180,15 +180,26 @@ jobs:
           TEMP_RESULTS="artifacts/pr-${PR_ID}/temp_test_results.json"
           FINAL_RESULTS="artifacts/pr-${PR_ID}/test_results.json"
           MERGED_RESULTS="artifacts/pr-${PR_ID}/merged_test_results.json"
+          TEMP_REPORT="artifacts/pr-${PR_ID}/temp_test_report.html"
+          FINAL_REPORT="artifacts/pr-${PR_ID}/final_test_report.html"
 
+          # Merge JSON results only if both files exist
           if [[ -f "$TEMP_RESULTS" && -f "$FINAL_RESULTS" ]]; then
             jq -s '.[0].tests + .[1].tests | {tests: .}' "$TEMP_RESULTS" "$FINAL_RESULTS" > "$MERGED_RESULTS"
             mv "$MERGED_RESULTS" "$FINAL_RESULTS"
           fi
 
           echo "Generating final HTML report from merged results..."
-          cp artifacts/pr-${PR_ID}/test_report.html artifacts/pr-${PR_ID}/final_test_report.html
-          cat artifacts/pr-${PR_ID}/temp_test_report.html >> artifacts/pr-${PR_ID}/final_test_report.html
+          cp artifacts/pr-${PR_ID}/test_report.html "$FINAL_REPORT"
+
+          # Only merge temp_test_report.html if it exists
+          if [[ -f "$TEMP_REPORT" ]]; then
+            echo "Merging previously failed test report..."
+            cat "$TEMP_REPORT" >> "$FINAL_REPORT"
+          else
+            echo "⚠️ No temp_test_report.html found. Skipping merge."
+          fi
+
 
 
 
