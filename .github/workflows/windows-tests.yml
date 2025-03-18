@@ -118,7 +118,8 @@ jobs:
               echo "Running failed tests: ${FAILED_TESTS[@]}"
               
               pytest --tb=long --json-report --json-report-file=artifacts/pr-${PR_ID}/temp_test_results.json \
-                     --html=artifacts/pr-${PR_ID}/temp_test_report.html --self-contained-html "${FAILED_TESTS[@]}" || true
+                     --html=artifacts/pr-${PR_ID}/temp_test_report.html --self-contained-html \
+                     --maxfail=100 --disable-warnings --capture=sys "${FAILED_TESTS[@]}" || true
 
               echo "Finished running previously failed tests."
             else
@@ -127,6 +128,7 @@ jobs:
           else
             echo "No previously failed tests found."
           fi
+
 
 
 
