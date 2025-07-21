@@ -56,4 +56,12 @@ The tool uses a history-based test prioritization strategy:
 ```
 
 
+## 📚 References
 
+- **Base Repository**: [CI-Optimization](https://github.com/ShubhamDesai/CI-Optimization)
+- **Original Pytest Repo Workflow**: [pytest-dev/pytest](https://github.com/pytest-dev/pytest/blob/main/.github/workflows/test.yml)
+- **Forked Pytest Repo with Implementation**: [ShubhamDesai/pytest](https://github.com/ShubhamDesai/pytest/blob/main/.github/workflows/test.yml)
+- **Batch Creation Python Script**: [generate_pytest_commands.py](https://github.com/ShubhamDesai/pytest/blob/main/scripts/generate_pytest_commands.py)
+- **Original PR on Pytest**: [PR #13380](https://github.com/pytest-dev/pytest/pull/13380)
+- **Replicated PR for Testing on Fork**: [PR #16](https://github.com/ShubhamDesai/pytest/pull/16)
+- **GRASS GIS Example with Commits**: [GRASS PR #4292](https://github.com/OSGeo/grass/pull/4292/commits)
