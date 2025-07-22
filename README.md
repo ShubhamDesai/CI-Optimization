@@ -1,18 +1,22 @@
 # 🔍 PrioTestCI: Efficient Test Case Prioritization in GitHub Workflows for CI Optimization
 
 This tool enhances your CI efficiency by prioritizing previously failed test cases using GitHub Actions. It speeds up feedback loops, reduces redundant test runs, and saves compute resources—especially useful for repositories with extensive test suites.
-## 🧭 Workflow Overview
 
-![Workflow Overview](images/workflow_Overview.png)
-
-## 📊 GitHub Action Sequence Diagram
-
-![GitHub Action Sequence](images/githubactionsequence_diagram.png)
 ## 🚀 What It Does
 - Runs only the failed tests from the previous workflow run.
 - If they pass, runs the remaining test cases.
 - Stores and retrieves test results using GitHub Artifacts.
 - Supports PR-specific scoping and matrix configurations.
+
+## 🧭 Workflow Overview
+The diagram below shows how PrioTestCI integrates with a GitHub Actions workflow. It starts by executing all tests on the first commit. Failed tests are stored as artifacts. On subsequent commits, only those failed tests are run first. If they pass, remaining tests run; otherwise, the workflow stops early.
+
+![Workflow Overview](images/workflow_Overview.png)
+
+## 📊 GitHub Action Sequence Diagram
+The following UML sequence diagram shows how PrioTestCI handles test execution in GitHub Actions. It captures two key scenarios: (1) initial test execution when no prior artifacts are found, and (2) subsequent runs where only previously failed test cases are prioritized, followed by conditional execution of the remaining ones. Artifact-based tracking ensures that test failures are efficiently managed across PR commits.
+
+![GitHub Action Sequence](images/uml.png)
 
 ## 🛠️ How It Works
 The tool uses a history-based test prioritization strategy:
@@ -42,7 +46,6 @@ The tool uses a history-based test prioritization strategy:
 
 
 
-
 ## 📁 Repo Structure
 ```
 ├── .github/workflows/
@@ -54,6 +57,28 @@ The tool uses a history-based test prioritization strategy:
 │   └── execution_time_chart.png
 └── README.md
 ```
+
+## 🏁 Getting Started
+
+To adopt PrioTestCI in your project, follow these steps:
+
+1. **Use the Example Workflow**  
+   Start by reviewing the [`windows-tests.yml`](.github/workflows/windows-tests.yml) file in this repository. It provides a minimal setup for test case prioritization using GitHub Actions.
+
+2. **Integrate into Your Workflow**  
+   Based on the example, update your own workflow YAML file located under `.github/workflows/` in your repository to match the necessary logic.
+
+3. **For Matrix-Based Workflows**  
+   If your project uses matrix configurations (e.g., multiple OS or Python versions), refer to our full implementation in the Pytest fork:  
+   🔗 [`test.yml` from Pytest fork](https://github.com/ShubhamDesai/pytest/blob/main/.github/workflows/test.yml)
+
+4. **Enable Test Batching (Optional)**  
+   For large test suites, we recommend batching tests to avoid "argument list too long" errors. Use the batching script available here:  
+   🔗 [`generate_pytest_commands.py`](https://github.com/ShubhamDesai/pytest/blob/main/scripts/generate_pytest_commands.py)
+
+5. **Run Your First Pull Request**  
+   Once integrated, simply open a pull request to the main branch. The GitHub Actions workflow will automatically run with test case prioritization enabled.
+
 
 ## 📈 Results and Effectiveness
 
@@ -111,3 +136,5 @@ We evaluated the impact of our test prioritization strategy on the [Pytest repos
 - **Original PR on Pytest**: [PR #13380](https://github.com/pytest-dev/pytest/pull/13380)
 - **Replicated PR for Testing on Fork**: [PR #16](https://github.com/ShubhamDesai/pytest/pull/16)
 - **GRASS GIS Example with Commits**: [GRASS PR #4292](https://github.com/OSGeo/grass/pull/4292/commits)
+- **📽️ Demo Video**: [YouTube – PrioTestCI Walkthrough](https://www.youtube.com/watch?v=_3CF9LJdv0I)
+
