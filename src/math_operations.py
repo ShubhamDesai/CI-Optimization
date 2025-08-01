@@ -10,7 +10,7 @@ def subtract(a, b):
 
 def multiply(a, b):
     """Return the product of two numbers."""
-    return a * b
+    return a * b 
 
 def divide(a, b):
     """Return the division of two numbers. Raise an error if dividing by zero."""
@@ -20,11 +20,11 @@ def divide(a, b):
 
 def power(base, exponent):
     """Return the base raised to the power of exponent."""
-    return base ** exponent
+    return base ** exponent 
 
 def modulus(a, b):
     """Return the remainder of dividing a by b."""
-    return a % b
+    return a % b 
 
 def floor_divide(a, b):
     """Return the floor division of two numbers."""
