@@ -64,9 +64,9 @@ PrioTestCI identifies and categorizes test cases into three main statuses using 
 
 ### **Failed Tests**
 Failed tests are identified by parsing the pytest JSON report output using `jq` to filter tests with `outcome == "failed"`:
-
+```bash
 cat $PREV_RESULTS | jq -r '.tests | map(select(.outcome == "failed")) | .[].nodeid' > $FAILED_TESTS_FILE
-
+```
 
 These tests are extracted from previous workflow runs stored as GitHub artifacts and prioritized for re-execution in subsequent commits. The workflow specifically targets tests that previously failed to provide faster feedback on whether recent changes have resolved the issues.
 
@@ -77,11 +77,13 @@ Skipped tests are detected using two complementary approaches:
 2. **During Execution**: From the JSON report by filtering tests with `outcome == "skipped"`
 
 Collection-based detection
+```bash
 tox -e ${{ matrix.tox_env }} --collect-only -v $(cat $FAILED_TESTS_FILE) | grep "SKIP" | grep "::" > $SKIPPED_TESTS_FILE
-
+```
 Execution-based detection
+```bash
 cat $TEMP_RESULTS | jq -r '.tests | map(select(.outcome == "skipped")) | .[].nodeid' > "skipped_tests_report.txt"
-
+```
 
 Skipped tests are automatically removed from the failed tests list to avoid unnecessary re-execution attempts. This prevents the workflow from trying to run tests that are intentionally disabled or not applicable to the current environment.
 
@@ -89,11 +91,13 @@ Skipped tests are automatically removed from the failed tests list to avoid unne
 Passed tests are implicitly identified as all tests that are neither failed nor skipped. The workflow uses set operations to determine the remaining test cases:
 
 All tests collected via pytest
+```bash
 pytest --collect-only --quiet | grep "::" > $ALL_TESTS_FILE
-
+```
 Remaining tests = All tests - Failed tests
+```bash
 grep -v -F -f $FAILED_TESTS_FILE $ALL_TESTS_FILE > $REMAINING_TESTS_FILE
-
+```
 
 These remaining tests are executed only after previously failed tests pass successfully, implementing the "fail-fast" behavior that saves compute resources and provides quicker feedback.
 
