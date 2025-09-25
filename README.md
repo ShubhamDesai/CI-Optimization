@@ -58,6 +58,66 @@ The tool uses a history-based test prioritization strategy:
 └── README.md
 ```
 
+## 📊 Test Case Status Identification
+
+PrioTestCI identifies and categorizes test cases into three main statuses using pytest's JSON output format and collection mechanisms.
+
+### **Failed Tests**
+Failed tests are identified by parsing the pytest JSON report output using `jq` to filter tests with `outcome == "failed"`:
+
+cat $PREV_RESULTS | jq -r '.tests | map(select(.outcome == "failed")) | .[].nodeid' > $FAILED_TESTS_FILE
+
+
+These tests are extracted from previous workflow runs stored as GitHub artifacts and prioritized for re-execution in subsequent commits. The workflow specifically targets tests that previously failed to provide faster feedback on whether recent changes have resolved the issues.
+
+### **Skipped Tests** 
+Skipped tests are detected using two complementary approaches:
+
+1. **During Collection**: Using `pytest --collect-only` with filtering to exclude tests marked with "SKIP"
+2. **During Execution**: From the JSON report by filtering tests with `outcome == "skipped"`
+
+Collection-based detection
+tox -e ${{ matrix.tox_env }} --collect-only -v $(cat $FAILED_TESTS_FILE) | grep "SKIP" | grep "::" > $SKIPPED_TESTS_FILE
+
+Execution-based detection
+cat $TEMP_RESULTS | jq -r '.tests | map(select(.outcome == "skipped")) | .[].nodeid' > "skipped_tests_report.txt"
+
+
+Skipped tests are automatically removed from the failed tests list to avoid unnecessary re-execution attempts. This prevents the workflow from trying to run tests that are intentionally disabled or not applicable to the current environment.
+
+### **Passed Tests**
+Passed tests are implicitly identified as all tests that are neither failed nor skipped. The workflow uses set operations to determine the remaining test cases:
+
+All tests collected via pytest
+pytest --collect-only --quiet | grep "::" > $ALL_TESTS_FILE
+
+Remaining tests = All tests - Failed tests
+grep -v -F -f $FAILED_TESTS_FILE $ALL_TESTS_FILE > $REMAINING_TESTS_FILE
+
+
+These remaining tests are executed only after previously failed tests pass successfully, implementing the "fail-fast" behavior that saves compute resources and provides quicker feedback.
+
+### **Test Discovery Process**
+
+| Step | Description | Command/Method | Purpose |
+|------|-------------|----------------|---------|
+| **Collection** | All test cases discovered | `pytest --collect-only --quiet \| grep "::"` | Identify complete test suite |
+| **Filtering** | Skip-marked tests excluded | `grep -v "SKIP"` during collection | Remove non-executable tests |
+| **Categorization** | Previous results parsed | `jq` filtering on JSON artifacts | Separate failed from passed tests |
+| **Prioritization** | Failed tests run first | Conditional execution based on status | Implement fail-fast strategy |
+| **Execution** | Remaining tests run conditionally | `grep -v -F -f` set operations | Complete test coverage |
+
+### **Workflow Logic**
+The test identification process follows this sequence:
+
+1. **Artifact Retrieval**: Download previous test results from GitHub artifacts using PR-specific naming (`pr-<PR_ID>-test-results`)
+2. **Status Parsing**: Extract test outcomes from JSON reports using `jq` queries
+3. **Set Operations**: Use Unix tools like `grep` to compute test set differences
+4. **Conditional Execution**: Run failed tests first, then remaining tests only if no failures occur
+5. **Result Storage**: Save new test results as artifacts for future workflow runs
+
+This approach ensures efficient test execution by focusing on previously problematic tests while maintaining comprehensive coverage when all priority tests pass.
+
 ## 🏁 Getting Started
 
 To adopt PrioTestCI in your project, follow these steps:
